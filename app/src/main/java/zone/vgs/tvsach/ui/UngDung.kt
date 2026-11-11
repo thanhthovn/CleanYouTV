@@ -1062,7 +1062,7 @@ private fun ManCaiLauncher(vm: PhienLamViec) {
         if (hienXacNhanEpSetup) AlertDialog(
             onDismissRequest = { hienXacNhanEpSetup = false },
             containerColor = The1,
-            title = { Text("Buộc tắt setupwraith?", color = ChuChinh, fontWeight = FontWeight.Bold) },
+            title = { Text("Buộc tắt setupwraith?", color = Color.White, fontWeight = FontWeight.Bold) },
             text = { Text("TV có thể mất Wi-Fi và CleanYouTV có thể mất kết nối ADB. Watchdog sẽ thử bật lại setupwraith và Home gốc, nhưng không bảo đảm tự khôi phục Wi-Fi. Chỉ tiếp tục nếu TV có dây LAN hoặc bạn có thể kết nối lại Wi-Fi từ Cài đặt.", color = ChuPhu) },
             confirmButton = {
                 TextButton(onClick = {
