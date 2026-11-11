@@ -18,3 +18,7 @@ Project Android Studio được tùy chỉnh từ CleanYourTV theo yêu cầu:
 APK ArmyDock được đóng gói tại `app/src/main/assets/armylauncher.apk`. Hai APK HomeVGS hiện có trong assets là `tvhome.apk` và `tvhome-xiaomi.apk`.
 
 Không có APK mới được build trong lần chỉnh sửa này.
+
+## Ghi công
+
+Thanks for VGS · Copyright Gathin23
