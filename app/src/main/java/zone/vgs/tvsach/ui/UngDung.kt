@@ -1035,7 +1035,7 @@ private fun ManCaiLauncher(vm: PhienLamViec) {
                 }
                 val ketQua = vm.ketQuaLauncherCai.getOrNull(index).orEmpty()
                 if (ketQua.isNotBlank()) Phu(ketQua, if (ketQua.startsWith("Lỗi:")) Cam else Xanh)
-                if (vm.loaiLauncherCai == "army" && index == 3 && ketQua.contains("Chưa tắt setupwraith:")) {
+                if (index == 5 && ketQua.contains("Chưa tắt setupwraith:")) {
                     NutPhu("Tôi vẫn muốn tắt setupwraith", Icons.Rounded.Warning, mauChu = Cam) {
                         hienXacNhanEpSetup = true
                     }

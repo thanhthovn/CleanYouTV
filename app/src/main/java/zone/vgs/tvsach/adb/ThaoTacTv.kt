@@ -1162,18 +1162,19 @@ class ThaoTacTv(private val adb: KetNoiAdb, private val kho: KhoSaoLuu) {
     }
 
     /** Tắt Home Google sau khi launcher mới đã mở thử và watchdog đã đăng ký. */
-    fun tatHomeGoogleChoArmy(sl: BanSaoLuu): String {
+    fun tatHomeGoogleChoLauncher(sl: BanSaoLuu, componentMoi: String, ungVienTimDuoc: Set<String>): String {
         val goc = sl.homeTruoc.substringBefore('/')
         if (goc !in HOME_GOOGLE) return "Home gốc không phải launcher Google đã nhận diện; giữ nguyên."
         if (dangBat(SETUP)) error("Chưa tắt setupwraith. Không tắt Home Google trước khi gói này được xử lý an toàn.")
-        if (!sh("pm path $PKG_ARMY").contains("package:")) error("Chưa thấy ArmyDock đã cài trên TV.")
-        val thu = sh("am start -W -n $PKG_ARMY/$ARMY_ACTIVITY")
+        val pkgMoi = componentMoi.substringBefore('/')
+        if (!sh("pm path $pkgMoi").contains("package:")) error("Chưa thấy launcher mới đã cài trên TV ($pkgMoi).")
+        val thu = sh("am start -W -n $componentMoi")
         if (!thu.contains("Status: ok") || thu.lines().any { it.startsWith("Error") }) {
-            error("ArmyDock chưa mở thử được; Home Google vẫn được giữ. $thu")
+            error("Launcher mới chưa mở thử được; Home Google vẫn được giữ. $thu")
         }
         val claimants = sh("cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME")
             .lines().mapNotNull { Regex("""^\s*([A-Za-z0-9_.]+)/""").find(it)?.groupValues?.get(1) }
-            .filter { it in HOME_GOOGLE && dangBat(it) }.distinct()
+            .filter { it in HOME_GOOGLE && it in ungVienTimDuoc && dangBat(it) }.distinct()
         if (goc !in claimants) error("Home Google gốc không còn trong danh sách app nhận HOME; không tắt gói nào.")
         val homes = (listOf(goc) + claimants.filter { it != goc }).distinct()
         homes.forEach { gacThem(it) }
@@ -1187,17 +1188,23 @@ class ThaoTacTv(private val adb: KetNoiAdb, private val kho: KhoSaoLuu) {
             if (pkg !in sl.daTatTruoc) sl.daTatBoiApp += pkg
             luuSaoLuu(sl)
         }
-        return "Đã tắt các Home Google nhận nút HOME (${homes.joinToString()}) sau khi ArmyDock mở thử; watchdog bật lại các gói nếu bàn giao dở dang."
+        return "Đã tắt các Home Google nhận nút HOME (${homes.joinToString()}) sau khi launcher mới mở thử; watchdog bật lại các gói nếu bàn giao dở dang."
     }
 
-    /** Tắt Home gốc đã được sao lưu, chỉ khi nhận diện chắc chắn và bo mạch không thuộc CVTE. */
-    fun tatHomeGocNeuAnToan(sl: BanSaoLuu): String {
+    fun tatHomeGoogleChoArmy(sl: BanSaoLuu): String =
+        tatHomeGoogleChoLauncher(sl, "$PKG_ARMY/$ARMY_ACTIVITY", HOME_GOOGLE)
+
+    /** Tắt Home gốc đã được sao lưu nếu bước dò xác nhận, không phải trình thiết lập, và bo mạch không thuộc CVTE. */
+    fun tatHomeGocNeuAnToan(sl: BanSaoLuu, ungVienTimDuoc: Set<String> = emptySet()): String {
         val goc = sl.homeTruoc.substringBefore('/')
         if (goc in HOME_GOOGLE) {
             return "Giữ Home Google ($goc) làm phương án dự phòng; không tắt trong lúc cài launcher."
         }
-        if (goc !in HOME_GOC_BIET || goc == pkgHome || laBoMachCvte()) {
-            return "Giữ Home hiện tại ($goc); không thuộc trường hợp có thể tắt an toàn."
+        if (goc in KHONG_PHAI_HOME || goc.contains("setupwizard", ignoreCase = true) || goc.contains("provision", ignoreCase = true)) {
+            return "Giữ gói thiết lập hệ thống ($goc); đây không phải Home an toàn để tắt."
+        }
+        if ((goc !in HOME_GOC_BIET && goc !in ungVienTimDuoc) || goc == pkgHome || laBoMachCvte()) {
+            return "Giữ Home hiện tại ($goc); bước dò chưa xác nhận đây là launcher gốc có thể tắt an toàn."
         }
         gacThem(goc)
         if (!gacDangChay()) return "Không xác nhận được watchdog; giữ Home gốc ($goc) bật."

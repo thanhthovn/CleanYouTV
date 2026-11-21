@@ -681,6 +681,7 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
     var buocLauncherCai by mutableStateOf(0)
     var ketQuaLauncherCai by mutableStateOf<List<String>>(emptyList())
     var launcherCaiXong by mutableStateOf(false)
+    private var launcherGocTimDuoc: Set<String> = emptySet()
 
     fun moPanelCaiLauncher(loai: String) {
         if (loai !in setOf("army", "home", "xiaomi")) return
@@ -689,6 +690,7 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
         buocLauncherCai = 0
         ketQuaLauncherCai = emptyList()
         launcherCaiXong = false
+        launcherGocTimDuoc = emptySet()
         if (loai == "xiaomi") tv.chonHomeXiaomi(true) else if (loai == "home") tv.chonHomeXiaomi(false)
         man = Man.CAI_LAUNCHER
     }
@@ -696,27 +698,19 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
     fun cacBuocLauncherCai(): List<Pair<String, String>> {
         val homeGoc = saoLuu?.homeTruoc?.substringBefore('/')
         val homeGoogle = homeGoc?.let { it in ThaoTacTv.HOME_GOOGLE } == true
-        val homeGocBiet = homeGoc?.takeIf { it in ThaoTacTv.HOME_GOC_BIET }
-        val buocTatHome = if (homeGoogle && loaiLauncherCai == "army") {
-            t("Tắt Home Google sau khi ArmyDock mở thử", "Disable Google Home after ArmyDock test") to "pm disable-user --user 0 $homeGoc"
-        } else if (homeGoogle) {
-            t("Giữ Home Google làm dự phòng", "Keep Google Home as fallback") to "# CleanYouTV giữ Home Google bật trong quy trình HomeVGS"
-        } else if (homeGocBiet != null) {
-            t("Tắt Home gốc sau khi launcher mở thử", "Disable stock Home after launcher test") to "pm disable-user --user 0 $homeGocBiet"
-        } else {
-            t("Giữ Home gốc chưa nhận diện", "Keep unidentified stock Home enabled") to "# CleanYouTV giữ Home gốc vì chưa nhận diện an toàn"
-        }
+        val lenhDoLauncher = "pm list packages -s | grep -iE \"launcherx|tv\\.?launcher|leanbacklauncher|setupwraith|tv\\.?setup|setupwizard|provision|tv\\.?home|launcher3|mboxlauncher|home\\.?launcher|box\\.?launcher|atv\\.?launcher|tianci|jamdeo|droidtv|firehomelauncher|softwinner|rockchip|whale|zeasn|vestel|xgimi|jmgo|dangbei\""
         return when (loaiLauncherCai) {
         "army" -> buildList {
             add(t("Cài APK ArmyDock", "Install ArmyDock APK") to "adb install -r armylauncher.apk")
             add(t("Tối ưu ArmyDock", "Optimize ArmyDock") to "cmd package compile -m speed -f com.xin.armydock")
             add(t("Mở thử ArmyDock", "Start ArmyDock") to "am start -W -n ${ThaoTacTv.PKG_ARMY}/${ThaoTacTv.ARMY_ACTIVITY}")
-            if (homeGoogle) add(
-                t("Google TV: kết nối lại Wi-Fi hoặc dùng LAN trước bước này", "Google TV: rejoin Wi-Fi or use Ethernet before this step") to
-                    "pm disable-user --user 0 ${ThaoTacTv.SETUP}"
-            )
+            add(t("Tìm launcher gốc và kiểm tra Home hiện tại", "Find the stock launcher and check current Home") to lenhDoLauncher)
             add(t("Đăng ký watchdog khôi phục Home gốc", "Register stock Home recovery watchdog") to "# CleanYouTV lưu Home gốc và đăng ký watchdog trên TV")
-            add(buocTatHome)
+            add(if (homeGoogle)
+                t("Google TV: xử lý setupwraith rồi tắt Home Google sau khi kiểm tra mạng", "Google TV: handle setupwraith, then disable Google Home after network checks") to
+                    "# CleanYouTV kiểm tra mạng và watchdog trước khi tắt setupwraith/Home Google; không chạy lệnh gộp thủ công"
+            else t("Tắt launcher gốc được nhận diện sau khi launcher mới mở thử", "Disable the detected stock launcher after testing the new launcher") to
+                "pm disable-user --user 0 ${homeGoc ?: "<launcher-gốc-từ-bước-4>"}")
             add(t("Đặt ArmyDock làm Home", "Set ArmyDock as Home") to "cmd package set-home-activity --user 0 com.xin.armydock/com.xin.armydock.MainActivity")
             add(t("Kiểm tra Home Android đang chọn", "Check Android's selected Home") to "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME")
             add(t("Bấm Home và xác nhận ArmyDock đang hiện", "Press Home and confirm ArmyDock is visible") to "input keyevent KEYCODE_HOME")
@@ -725,8 +719,12 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
             t("Cài APK HomeVGS", "Install HomeVGS APK") to "adb install -r ${if (loaiLauncherCai == "xiaomi") "tvhome-xiaomi.apk" else "tvhome.apk"}",
             t("Tối ưu HomeVGS", "Optimize HomeVGS") to "cmd package compile -m speed -f ${if (loaiLauncherCai == "xiaomi") ThaoTacTv.PKG_HOME_XIAOMI else ThaoTacTv.PKG_HOME}",
             t("Mở thử HomeVGS", "Start HomeVGS") to "am start -W -n ${if (loaiLauncherCai == "xiaomi") ThaoTacTv.PKG_HOME_XIAOMI else ThaoTacTv.PKG_HOME}/com.gathin.tvhome.MainActivity",
+            t("Tìm launcher gốc và kiểm tra Home hiện tại", "Find the stock launcher and check current Home") to lenhDoLauncher,
             t("Đăng ký Home gốc để khôi phục nếu mất kết nối", "Register the stock Home for rollback if connection is lost") to "CleanYouTV watchdog · Home cũ",
-            buocTatHome,
+            (if (homeGoogle) t("Google TV: xử lý setupwraith rồi tắt Home Google sau khi kiểm tra mạng", "Google TV: handle setupwraith, then disable Google Home after network checks")
+             else t("Tắt launcher gốc phù hợp theo kết quả bước dò", "Disable the stock launcher matching the scan")) to
+                (if (homeGoogle) "# CleanYouTV kiểm tra mạng và watchdog trước khi tắt setupwraith/Home Google; không chạy lệnh gộp thủ công"
+                 else "pm disable-user --user 0 ${homeGoc ?: "<launcher-gốc-từ-bước-4>"}"),
             t("Đặt HomeVGS làm Home", "Set HomeVGS as Home") to "cmd package set-home-activity --user 0 ${if (loaiLauncherCai == "xiaomi") ThaoTacTv.PKG_HOME_XIAOMI else ThaoTacTv.PKG_HOME}/com.gathin.tvhome.MainActivity",
             t("Kiểm tra Home hiện tại", "Verify current Home") to "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME",
             t("Ghi cấu hình giao diện và bật dịch vụ Home", "Write Home settings and enable Home services") to "content write --uri content://${if (loaiLauncherCai == "xiaomi") ThaoTacTv.PKG_HOME_XIAOMI else ThaoTacTv.PKG_HOME}.theme/config.json",
@@ -740,12 +738,12 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
         val buoc = buocLauncherCai
         val ds = cacBuocLauncherCai()
         val homeGoogle = saoLuu?.homeTruoc?.substringBefore('/')?.let { it in ThaoTacTv.HOME_GOOGLE } == true
-        val buocSetupArmy = if (homeGoogle) 3 else -1
-        val buocWatchdogArmy = if (homeGoogle) 4 else 3
-        val buocTatHomeArmy = if (homeGoogle) 5 else 4
-        val buocDatHomeArmy = if (homeGoogle) 6 else 5
-        val buocXacMinhArmy = if (homeGoogle) 7 else 6
-        val buocHomeThatArmy = if (homeGoogle) 8 else 7
+        val buocScanLauncher = 3
+        val buocWatchdog = 4
+        val buocTatHome = 5
+        val buocDatHome = 6
+        val buocXacMinhHome = 7
+        val buocHomeThat = if (loaiLauncherCai == "army") 8 else 9
         if (buoc !in ds.indices || launcherCaiXong) return@chay
         try {
             val sl = saoLuu ?: error(t("Chưa có bản sao lưu. Hãy kết nối và chạy bước Dọn trước.", "No backup found. Connect and clean first."))
@@ -757,7 +755,7 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
             // knows which launcher flow was underway and can inspect the TV before restoring it.
             sl.launcherDangCai = loaiLauncherCai
             io { tv.luuSaoLuu(sl) }
-            if (loaiLauncherCai != "army" && buoc == 5 && sl.homeTruoc.substringBefore('/') in ThaoTacTv.HOME_GOOGLE && io { tv.setupWraithDangBat() }) {
+            if (loaiLauncherCai != "army" && buoc == buocDatHome && sl.homeTruoc.substringBefore('/') in ThaoTacTv.HOME_GOOGLE && io { tv.setupWraithDangBat() }) {
                 error(t(
                     "Google TV vẫn bật setupwraith. Để tránh kẹt Home, app chưa đổi Home mặc định. Giữ Home Google làm dự phòng; xử lý setupwraith an toàn (LAN hoặc quên/kết nối lại Wi-Fi nếu cần), kết nối lại TV rồi chạy lại bước này.",
                     "Google TV still has setupwraith enabled. To avoid a stuck Home screen, the default Home was not changed. Google Home stays as fallback. Handle setupwraith safely (Ethernet or forget/rejoin Wi-Fi if needed), reconnect, then retry this step."
@@ -768,14 +766,22 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
                     0 -> {
                         if (io { tv.boNhoThap() }) error(tv.baoThieuBoNho(io { tv.boNhoTrong() }))
                         val apk = io { ctx.assets.open("armylauncher.apk").use { it.readBytes() } }
-                        io { tv.caiApkTuDienThoai(apk) }.also { if (!it.contains("Success", true)) error(it.ifBlank { "Không cài được APK." }) }
+                        io { tv.caiApkTuDienThoai(apk) }.also { if (!it.contains("Success", true)) error("Không cài được APK: ${it.ifBlank { "Package Manager không trả kết quả." }}") }
                     }
                     1 -> io { tv.chayLenh("cmd package compile -m speed -f com.xin.armydock") }
                     2 -> io { tv.chayLenh("am start -W -n ${ThaoTacTv.PKG_ARMY}/${ThaoTacTv.ARMY_ACTIVITY}") }
                         .also { if (!it.contains("Status: ok") || it.lines().any { line -> line.startsWith("Error") }) error(it.ifBlank { "Không mở được ArmyDock." }) }
-                    buocSetupArmy -> io { tv.tatSetupWraithChoArmy(sl, buocQuaKiemTraMang = epSetupwraith) { s -> ghiTuIo(s) } }
-                        .also { if (it.startsWith("Chưa tắt setupwraith:")) error(it) }
-                    buocWatchdogArmy -> {
+                    buocScanLauncher -> {
+                        val raw = io { tv.chayLenh(ds[buoc].second) }
+                        launcherGocTimDuoc = raw.lineSequence().mapNotNull { line ->
+                            line.trim().takeIf { it.startsWith("package:") }?.removePrefix("package:")?.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
+                        }.toSet()
+                        val homeNow = io { tv.homeHienTai() }
+                        val oldHome = sl.homeTruoc.substringBefore('/')
+                        val matches = if (oldHome in launcherGocTimDuoc) "Có trong danh sách dò." else "Không thấy Home đã lưu trong danh sách dò; app sẽ giữ gói này bật."
+                        "Gói hệ thống khớp: ${launcherGocTimDuoc.sorted().joinToString().ifBlank { "không tìm thấy" }}\nHome đang chọn: ${homeNow.ifBlank { "không xác định" }}\nHome gốc đã lưu: $oldHome — $matches"
+                    }
+                    buocWatchdog -> {
                         val oldHome = sl.homeTruoc.substringBefore('/').takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
                             ?: io { tv.homeHienTai().substringBefore('/') }.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
                             ?: error("Không xác định được Home cũ để tạo điểm khôi phục.")
@@ -784,8 +790,22 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
                         if (!io { tv.gacDangChay() }) error("Không xác nhận được watchdog trên TV. Chưa tắt Home gốc; thử lại bước này.")
                         "Đã đăng ký Home cũ ($oldHome) cho watchdog khôi phục."
                     }
-                    buocTatHomeArmy -> if (homeGoogle) io { tv.tatHomeGoogleChoArmy(sl) } else io { tv.tatHomeGocNeuAnToan(sl) }
-                    buocDatHomeArmy -> {
+                    buocTatHome -> {
+                        val oldHome = sl.homeTruoc.substringBefore('/')
+                        val currentHome = io { tv.homeHienTai().substringBefore('/') }
+                        if (oldHome !in launcherGocTimDuoc) {
+                            "Bước dò chưa xác nhận $oldHome là launcher gốc. Giữ Home này bật; watchdog vẫn hoạt động."
+                        } else if (currentHome != oldHome && !(homeGoogle && currentHome == ThaoTacTv.SETUP)) {
+                            "Home hiện tại đã đổi thành $currentHome sau bước dò. Không tắt gói nào; hãy kiểm tra TV trước khi tiếp tục."
+                        } else if (homeGoogle) {
+                            val setupResult = io { tv.tatSetupWraithChoArmy(sl, buocQuaKiemTraMang = epSetupwraith) { s -> ghiTuIo(s) } }
+                            if (setupResult.startsWith("Chưa tắt setupwraith:")) error(setupResult)
+                            val componentMoi = if (loaiLauncherCai == "army")
+                                "${ThaoTacTv.PKG_ARMY}/${ThaoTacTv.ARMY_ACTIVITY}" else tv.cmpHome
+                            "${setupResult}\n${io { tv.tatHomeGoogleChoLauncher(sl, componentMoi, launcherGocTimDuoc) }}"
+                        } else io { tv.tatHomeGocNeuAnToan(sl, launcherGocTimDuoc) }
+                    }
+                    buocDatHome -> {
                         val oldHome = sl.homeTruoc.substringBefore('/').takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
                             ?: error("Không xác định được Home gốc để gia hạn watchdog.")
                         io { tv.gacThem(oldHome) }
@@ -793,8 +813,8 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
                         if (!io { tv.gacDangChay() }) error("Watchdog chưa chạy; chưa đặt Home mới. Chạy lại bước đăng ký watchdog.")
                         io { tv.chayLenh("cmd package set-home-activity --user 0 ${ThaoTacTv.PKG_ARMY}/${ThaoTacTv.ARMY_ACTIVITY}") }
                     }
-                    buocXacMinhArmy -> io { tv.homeHienTai() }.also { if (!it.startsWith("${ThaoTacTv.PKG_ARMY}/")) error("Android vẫn chọn Home là $it. Watchdog còn hoạt động; kiểm tra TV trước khi tiếp tục.") }
-                    buocHomeThatArmy -> {
+                    buocXacMinhHome -> io { tv.homeHienTai() }.also { if (!it.startsWith("${ThaoTacTv.PKG_ARMY}/")) error("Android vẫn chọn Home là $it. Watchdog còn hoạt động; kiểm tra TV trước khi tiếp tục.") }
+                    buocHomeThat -> {
                         var launcherDangHien = ""
                         repeat(3) {
                             if (!launcherDangHien.startsWith("${ThaoTacTv.PKG_ARMY}/")) {
@@ -821,19 +841,44 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
                         if (io { tv.boNhoThap() }) error(tv.baoThieuBoNho(io { tv.boNhoTrong() }))
                         val asset = if (loaiLauncherCai == "xiaomi") "tvhome-xiaomi.apk" else "tvhome.apk"
                         val apk = io { zone.vgs.tvsach.CapNhat.moAsset(ctx, asset).use { it.readBytes() } }
-                        io { tv.caiApkTuDienThoai(apk) }.also { if (!it.contains("Success", true)) error(it.ifBlank { "Không cài được APK." }) }
+                        io { tv.caiApkTuDienThoai(apk) }.also { if (!it.contains("Success", true)) error("Không cài được APK: ${it.ifBlank { "Package Manager không trả kết quả." }}") }
                     }
                     1 -> io { tv.chayLenh("cmd package compile -m speed -f ${tv.pkgHome}") }
                     2 -> io { tv.chayLenh("am start -W -n ${tv.cmpHome}") }.also { if (!it.contains("Status: ok") || it.lines().any { line -> line.startsWith("Error") }) error(it.ifBlank { "Không mở được HomeVGS." }) }
-                    3 -> {
+                    buocScanLauncher -> {
+                        val raw = io { tv.chayLenh(ds[buoc].second) }
+                        launcherGocTimDuoc = raw.lineSequence().mapNotNull { line ->
+                            line.trim().takeIf { it.startsWith("package:") }?.removePrefix("package:")?.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
+                        }.toSet()
+                        val homeNow = io { tv.homeHienTai() }
+                        val oldHome = sl.homeTruoc.substringBefore('/')
+                        val matches = if (oldHome in launcherGocTimDuoc) "Có trong danh sách dò." else "Không thấy Home đã lưu trong danh sách dò; app sẽ giữ gói này bật."
+                        "Gói hệ thống khớp: ${launcherGocTimDuoc.sorted().joinToString().ifBlank { "không tìm thấy" }}\nHome đang chọn: ${homeNow.ifBlank { "không xác định" }}\nHome gốc đã lưu: $oldHome — $matches"
+                    }
+                    buocWatchdog -> {
                         val oldHome = sl.homeTruoc.substringBefore('/').takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
-                        if (oldHome != null && oldHome != tv.pkgHome) io { tv.gacThem(oldHome) }
+                            ?: io { tv.homeHienTai().substringBefore('/') }.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
+                            ?: error("Không xác định được Home gốc để đăng ký watchdog.")
+                        if (oldHome != tv.pkgHome) io { tv.gacThem(oldHome) }
+                        if (!io { tv.gacDangChay() }) error("Không xác nhận được watchdog trên TV; chưa tắt Home gốc.")
                         "Đã đăng ký Home cũ${oldHome?.let { " ($it)" }.orEmpty()} cho watchdog khôi phục."
                     }
-                    4 -> io { tv.tatHomeGocNeuAnToan(sl) }
-                    5 -> io { tv.chayLenh("cmd package set-home-activity --user 0 ${tv.cmpHome}") }
-                    6 -> io { tv.homeHienTai() }.also { if (!it.startsWith("${tv.pkgHome}/")) error("Home hiện tại vẫn là $it") }
-                    7 -> {
+                    buocTatHome -> {
+                        val oldHome = sl.homeTruoc.substringBefore('/')
+                        val currentHome = io { tv.homeHienTai().substringBefore('/') }
+                        if (oldHome !in launcherGocTimDuoc) {
+                            "Bước dò chưa xác nhận $oldHome là launcher gốc. Giữ Home này bật; watchdog vẫn hoạt động."
+                        } else if (currentHome != oldHome) {
+                            "Home hiện tại đã đổi thành $currentHome sau bước dò. Không tắt gói nào; hãy kiểm tra TV trước khi tiếp tục."
+                        } else if (homeGoogle) {
+                            val setupResult = io { tv.tatSetupWraithChoArmy(sl, buocQuaKiemTraMang = epSetupwraith) { s -> ghiTuIo(s) } }
+                            if (setupResult.startsWith("Chưa tắt setupwraith:")) error(setupResult)
+                            "${setupResult}\n${io { tv.tatHomeGoogleChoLauncher(sl, tv.cmpHome, launcherGocTimDuoc) }}"
+                        } else io { tv.tatHomeGocNeuAnToan(sl, launcherGocTimDuoc) }
+                    }
+                    buocDatHome -> io { tv.chayLenh("cmd package set-home-activity --user 0 ${tv.cmpHome}") }
+                    buocXacMinhHome -> io { tv.homeHienTai() }.also { if (!it.startsWith("${tv.pkgHome}/")) error("Home hiện tại vẫn là $it") }
+                    8 -> {
                         val json = cauHinhHome()
                         val anh = anhNenTheme()
                         val bo = boAnhTheme()
@@ -849,7 +894,7 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
                         io { tv.luuSaoLuu(sl) }
                         "Đã ghi cấu hình và bật các dịch vụ Home đã chọn."
                     }
-                    8 -> {
+                    9 -> {
                         thuPhimHome(sl)
                         zone.vgs.tvsach.Dem.gui(ctx, "home", tenTiviDem(), dock.size, "theme:${themeChon.id}")
                         io { tv.chayLenh("input keyevent KEYCODE_HOME") }
@@ -891,11 +936,18 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
             }
         } catch (e: Throwable) {
             val message = e.message ?: t("Lệnh thất bại.", "Command failed.")
+            val goiLauncherMoi = when (loaiLauncherCai) {
+                "army" -> ThaoTacTv.PKG_ARMY
+                else -> tv.pkgHome
+            }
+            val goiYGoBanCu = if (buoc == 0 && message.startsWith("Không cài được APK"))
+                "\nNếu bản APK cũ gây xung đột, gỡ gói cũ rồi thử lại:\npm uninstall $goiLauncherMoi\nSau đó chạy lại bước Cài APK."
+            else ""
             ketQuaLauncherCai = ketQuaLauncherCai.toMutableList().also { results ->
                 while (results.size <= buoc) results.add("")
-                results[buoc] = "Lỗi: $message"
+                results[buoc] = "Lỗi: $message$goiYGoBanCu"
             }
-            if ((loaiLauncherCai == "army" && buoc == buocXacMinhArmy) || (buoc == 6 && loaiLauncherCai in setOf("home", "xiaomi"))) {
+            if (buoc == buocXacMinhHome) {
                 buocLauncherCai = buoc - 1
             }
             loi = message
