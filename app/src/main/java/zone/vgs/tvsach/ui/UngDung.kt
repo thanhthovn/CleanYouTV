@@ -793,6 +793,10 @@ private fun ManThongTin(vm: PhienLamViec) = Cuon {
                     NutPhu(t("Remote trên điện thoại", "Phone remote"), Icons.Rounded.SettingsRemote) { vm.moTienIchBoSung = false; vm.moRemote() }
                 }
                 NutPhu(t("Quản lý app trên tivi", "Manage TV apps"), Icons.Rounded.Apps) { vm.moTienIchBoSung = false; vm.moQuanLyApp() }
+                NutPhu("Command Tools", Icons.Rounded.Terminal) {
+                    vm.moTienIchBoSung = false
+                    vm.moCommandTools()
+                }
                 val tenNutKhoiPhuc = when {
                     vm.saoLuu != null -> t("Khôi phục tivi này", "Restore this TV")
                     vm.coDauCleanTv -> t("Khôi phục (không có sao lưu)", "Restore (no backup)")
@@ -809,6 +813,89 @@ private fun ManThongTin(vm: PhienLamViec) = Cuon {
                 TextButton(onClick = { vm.moTienIchBoSung = false }, modifier = Modifier.clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF9BB86A)).border(2.dp, Color(0xFF45622F), RoundedCornerShape(12.dp))) {
                     Text(t("Đóng", "Close"), color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+    )
+    val clipboardCommandTools = androidx.compose.ui.platform.LocalClipboardManager.current
+    val contextCommandTools = LocalContext.current
+    if (vm.moHopCommandTools) AlertDialog(
+        onDismissRequest = { if (!vm.dangBan) vm.moHopCommandTools = false },
+        containerColor = The1,
+        title = { Text("Command Tools", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Phu(t(
+                    "Nhập lệnh shell để chạy trực tiếp trên TV đang kết nối; không thêm `adb shell`. Lệnh có thể thay đổi cài đặt, tắt app hoặc khởi động lại TV. Chỉ chạy lệnh bạn hiểu.",
+                    "Enter a shell command to run on the connected TV; omit `adb shell`. Commands may change settings, disable apps, or reboot the TV. Run commands you understand.",
+                ))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF0D120D)).border(1.dp, Color(0xFF435439), RoundedCornerShape(12.dp)).padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(">_", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Xanh)
+                            Spacer(Modifier.width(8.dp))
+                            Text("TV SHELL", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = ChuPhu)
+                        }
+                        TextButton(
+                            onClick = {
+                                clipboardCommandTools.setText(androidx.compose.ui.text.AnnotatedString(vm.lenhCommandTools))
+                                Toast.makeText(contextCommandTools, t("Đã sao chép toàn bộ lệnh", "Full command copied"), Toast.LENGTH_SHORT).show()
+                            },
+                            enabled = vm.lenhCommandTools.isNotBlank(),
+                        ) {
+                            Icon(Icons.Rounded.ContentCopy, null, Modifier.size(16.dp), tint = Xanh)
+                            Spacer(Modifier.width(5.dp))
+                            Text(t("Sao chép", "Copy"), color = Xanh, fontSize = 12.sp)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = vm.lenhCommandTools,
+                        onValueChange = { vm.lenhCommandTools = it },
+                        placeholder = { Text("pm list packages -d", fontFamily = FontFamily.Monospace, color = ChuPhu) },
+                        modifier = Modifier.thoatOTv().fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFFD1DDCA), unfocusedTextColor = Color(0xFFD1DDCA),
+                            focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                            cursorColor = Xanh,
+                        ),
+                        minLines = 3,
+                        maxLines = 7,
+                        enabled = !vm.dangBan,
+                    )
+                }
+                if (vm.ketQuaCommandTools.isNotBlank()) {
+                    Text(t("Kết quả", "Output"), fontWeight = FontWeight.Bold, color = ChuPhu)
+                    Column(
+                        Modifier.fillMaxWidth().heightIn(max = 190.dp).clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0D120D)).border(1.dp, Color(0xFF435439), RoundedCornerShape(10.dp))
+                            .verticalScroll(rememberScrollState()).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text("TV OUTPUT", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Xanh)
+                        androidx.compose.foundation.text.selection.SelectionContainer {
+                            Text(vm.ketQuaCommandTools, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = Color(0xFFD1DDCA))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { vm.moHopCommandTools = false }, enabled = !vm.dangBan) {
+                    Text(t("Đóng", "Close"), color = Hong)
+                }
+                TextButton(onClick = { vm.chayLenhCommandTools() }, enabled = !vm.dangBan && vm.lenhCommandTools.isNotBlank()) {
+                    Text(if (vm.dangBan) t("Đang chạy…", "Running…") else t("Chạy lệnh", "Run command"), color = Xanh)
                 }
             }
         },

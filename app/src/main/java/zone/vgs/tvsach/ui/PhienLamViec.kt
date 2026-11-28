@@ -1061,6 +1061,9 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val hangPhim = Dispatchers.IO.limitedParallelism(1)
     var remoteBao by mutableStateOf("")
+    var moHopCommandTools by mutableStateOf(false)
+    var lenhCommandTools by mutableStateOf("")
+    var ketQuaCommandTools by mutableStateOf("")
     var appTuCai by mutableStateOf<Set<String>>(emptySet())
     var hoiGo by mutableStateOf<String?>(null)
     val appTrenTv: List<String> get() = trangThai?.let { tt -> tt.coBieuTuong.filter { it in tt.caiDat && it !in tt.daTat && it !in zone.vgs.tvsach.adb.ThaoTacTv.HOME_SACH &&
@@ -1075,6 +1078,24 @@ class PhienLamViec(app: Application) : AndroidViewModel(app) {
     fun moQuanLyApp() = chay(t("Đang mở quản lý app…", "Opening app manager…")) {
         appTuCai = io { tv.appTuCai() }
         man = Man.QUAN_LY_APP
+    }
+
+    fun moCommandTools() {
+        ketQuaCommandTools = ""
+        moHopCommandTools = true
+    }
+
+    fun chayLenhCommandTools() = chay(t("Đang gửi lệnh lên TV…", "Sending command to TV…")) {
+        val lenh = lenhCommandTools.trim()
+        if (lenh.isBlank()) error(t("Hãy nhập lệnh trước.", "Enter a command first."))
+        if (Regex("(?i)^adb\\s+shell(?:\\s|$)").containsMatchIn(lenh)) {
+            error(t("Chỉ nhập lệnh shell, bỏ phần mở đầu `adb shell`.", "Enter the shell command only; omit the `adb shell` prefix."))
+        }
+        ketQuaCommandTools = try {
+            io { tv.chayLenh(lenh) }.ifBlank { t("Lệnh đã chạy, TV không trả nội dung.", "Command ran; the TV returned no output.") }
+        } catch (e: Throwable) {
+            "Lỗi: ${moTaLoi(e)}"
+        }
     }
 
     private fun guiRemote(viec: () -> Unit) {
